@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 # Preprocessing function
 @st.cache_data
@@ -46,13 +47,10 @@ st.sidebar.header("Filters")
 
 # Date Range Filter with Year → Month → Day Hierarchical Selection
 st.sidebar.subheader("Select Date Range")
-
-# Extract available years
 available_years = sorted(cleaned_data['date_flown'].dropna().dt.year.unique())
 selected_year = st.sidebar.selectbox("Select Year", ["All"] + available_years)
 
 if selected_year != "All":
-    # Extract available months for the selected year
     available_months = sorted(cleaned_data[cleaned_data['date_flown'].dt.year == selected_year]['date_flown'].dt.month.unique())
     month_names = [datetime(1900, month, 1).strftime("%B") for month in available_months]
     month_map = {name: month for name, month in zip(month_names, available_months)}
@@ -62,9 +60,8 @@ else:
     selected_month = "All"
 
 if selected_year != "All" and selected_month != "All":
-    # Extract available days for the selected year and month
     available_days = sorted(cleaned_data[
-        (cleaned_data['date_flown'].dt.year == selected_year) & 
+        (cleaned_data['date_flown'].dt.year == selected_year) &
         (cleaned_data['date_flown'].dt.month == selected_month)
     ]['date_flown'].dt.day.unique())
     selected_day = st.sidebar.selectbox("Select Day", ["All"] + available_days)
@@ -131,23 +128,7 @@ elif len(selected_aircraft) == 0:
 if "All" not in selected_aircraft:
     filtered_data = filtered_data[filtered_data['aircraft_grouped'].isin(selected_aircraft)]
 
-# Seat Type Filter
-seat_types = ["All"] + list(cleaned_data['seat_type'].unique())
-selected_seat_types = st.sidebar.multiselect(
-    "Select Seat Type",
-    seat_types,
-    default="All"
-)
-
-if "All" in selected_seat_types and len(selected_seat_types) > 1:
-    selected_seat_types.remove("All")
-elif len(selected_seat_types) == 0:
-    selected_seat_types = ["All"]
-
-if "All" not in selected_seat_types:
-    filtered_data = filtered_data[filtered_data['seat_type'].isin(selected_seat_types)]
-
-# Country Filter Grouped by Continent
+# Country Filter
 continent_groups = cleaned_data.groupby('Continent')['place_cleaned'].unique().to_dict()
 selected_continent = st.sidebar.selectbox("Select Continent", options=["All"] + list(continent_groups.keys()))
 
@@ -170,7 +151,40 @@ elif len(selected_countries) == 0:
 if "All" not in selected_countries:
     filtered_data = filtered_data[filtered_data['place_cleaned'].isin(selected_countries)]
 
-# Display Filtered Data Sample
-st.write("### Filtered Data Sample")
-st.dataframe(filtered_data)
+# Tabs for Visualizations
+tab1, tab2 = st.tabs(["Filtered Data Sample", "Visualizations"])
+
+with tab1:
+    st.write("### Filtered Data Sample")
+    st.dataframe(filtered_data)
+
+with tab2:
+    st.write("### Reviews Per Country (Based on Filters)")
+    # Count the number of reviews per selected country
+    flights_per_country = filtered_data['place_cleaned'].value_counts().reset_index()
+    flights_per_country.columns = ['Country', 'Number of Flights']
+
+    # Plot the bar chart
+    fig, ax = plt.subplots(figsize=(12, 6))
+    bars = ax.bar(
+        flights_per_country['Country'],
+        flights_per_country['Number of Flights'],
+        color='skyblue'
+    )
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,  # x-coordinate
+            height + 0.5,                      # y-coordinate
+            f'{int(height)}',                  # Label
+            ha='center',                       # Alignment
+            va='bottom',                       # Position
+            fontsize=10                        # Font size
+        )
+
+    ax.set_title('Reviews Per Country (Filtered)', fontsize=16)
+    ax.set_xlabel('Country', fontsize=14)
+    ax.set_ylabel('Number of Flights', fontsize=14)
+    plt.xticks(rotation=45, ha='right', fontsize=12)
+    st.pyplot(fig)
 
